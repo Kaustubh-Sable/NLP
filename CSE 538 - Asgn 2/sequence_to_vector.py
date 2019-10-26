@@ -77,7 +77,16 @@ class DanSequenceToVector(SequenceToVector):
     def __init__(self, input_dim: int, num_layers: int, dropout: float = 0.2):
         super(DanSequenceToVector, self).__init__(input_dim)
         # TODO(students): start
-        # ...
+        self.dropout = dropout
+        self._input_dim = input_dim
+        self.num_layers = num_layers
+
+        self.dense = []
+        for i in range(num_layers):
+            self.dense.append(tf.keras.layers.Dense(input_dim, activation='relu'))
+
+        #self.softmax_layer = tf.keras.layers.Dense(input_dim, activation='softmax')
+
         # TODO(students): end
 
     def call(self,
@@ -85,7 +94,30 @@ class DanSequenceToVector(SequenceToVector):
              sequence_mask: tf.Tensor,
              training=False) -> tf.Tensor:
         # TODO(students): start
-        # ...
+        # masking
+        sequence_mask = tf.keras.backend.cast(sequence_mask, tf.keras.backend.floatx())
+        sequence_mask = tf.keras.backend.expand_dims(sequence_mask, 2)
+        vector_sequence *= sequence_mask
+
+        # dropout
+        if training:
+            input_shape = tf.keras.backend.shape(vector_sequence)
+            mask = tf.random.uniform((input_shape[0], input_shape[1], 1)) >= self.dropout
+            vector_sequence = tf.keras.backend.cast(mask, 'float32') * vector_sequence
+
+        vector_sequence = tf.reduce_mean(vector_sequence, 1)
+        layer_reps = []
+
+        for i in range(self.num_layers):
+            vector_sequence = self.dense[i](vector_sequence)
+            layer_reps.append(vector_sequence)
+
+        vec_seq_stack = tf.stack(layer_reps, axis=1)
+        #vector_sequence = self.softmax_layer(vector_sequence)
+
+        combined_vector = vector_sequence
+        layer_representations = vec_seq_stack
+
         # TODO(students): end
         return {"combined_vector": combined_vector,
                 "layer_representations": layer_representations}
@@ -108,7 +140,13 @@ class GruSequenceToVector(SequenceToVector):
     def __init__(self, input_dim: int, num_layers: int):
         super(GruSequenceToVector, self).__init__(input_dim)
         # TODO(students): start
-        # ...
+        self._input_dim = input_dim
+        self.num_layers = num_layers
+
+        self.gru_layers = []
+        for i in range(num_layers):
+            self.gru_layers.append(tf.keras.layers.GRU(input_dim, return_sequences=True, return_state=True))
+
         # TODO(students): end
 
     def call(self,
@@ -116,7 +154,25 @@ class GruSequenceToVector(SequenceToVector):
              sequence_mask: tf.Tensor,
              training=False) -> tf.Tensor:
         # TODO(students): start
-        # ...
+        # masking
+        # sequence_mask = tf.keras.backend.cast(sequence_mask, tf.keras.backend.floatx())
+        # sequence_mask = tf.keras.backend.expand_dims(sequence_mask, 2)
+        # vector_sequence *= sequence_mask
+
+        layer_reps = []
+
+        vector_sequence, layer_state = self.gru_layers[0](vector_sequence, mask=sequence_mask)
+        layer_reps.append(layer_state)
+
+        for i in range(1, self.num_layers):
+            vector_sequence, layer_state = self.gru_layers[i](vector_sequence)
+            layer_reps.append(layer_state)
+
+        vec_seq_stack = tf.stack(layer_reps, axis=1)
+
+        combined_vector = layer_state
+        layer_representations = vec_seq_stack
+
         # TODO(students): end
         return {"combined_vector": combined_vector,
                 "layer_representations": layer_representations}
