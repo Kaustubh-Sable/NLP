@@ -33,7 +33,7 @@ class ProbingClassifier(models.Model):
         self._layer_num = layer_num
 
         # TODO(students): start
-        # ...
+        self.activation_function = tf.keras.layers.Dense(classes_num, activation='softmax')
         # TODO(students): end
 
     def call(self, inputs: tf.Tensor, training: bool =False) -> tf.Tensor:
@@ -53,6 +53,14 @@ class ProbingClassifier(models.Model):
             only be applied during training.
         """
         # TODO(students): start
-        # ...
+
+        output = self._pretrained_model(inputs)
+
+        layer_reps = output['layer_representations']
+
+        layer_needed = layer_reps[:, self._layer_num-1, :]
+
+        logits = self.activation_function(layer_needed)
+
         # TODO(students): end
         return {"logits": logits}
